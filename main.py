@@ -29,15 +29,19 @@ from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 import email.utils
+import Queue
+
 
 BASE = RAISED
 SELECTED = FLAT
-        
+
 class Application(Frame):
+    
     def send(self):
         self.SEB.config(state=DISABLED)
         i=0
         t1_stop.set(False)
+        mysqlError.set(False)
         self.popup = popup = Toplevel(self)
         Label(popup, text="Please wait emails send...").grid(row=0, columnspan=2)
         Label(self.popup, textvariable=v).grid(row=1, columnspan=2)
@@ -48,15 +52,38 @@ class Application(Frame):
         t=threading.Thread(target=self.sendout)
         t.start()
         Button(popup, text="Stop", command=self.stopButton).grid(row=3, column=0)
-        Button(popup, text="Dismiss", command=self.popup.destroy).grid(row=3, column=1)
+        self.myB=myB=Button(popup, text="Dismiss", command=self.popup.destroy)
+        myB.grid(row=3, column=1)
+        myB.config(state=DISABLED)
         
     def stopButton(self):
         t1_stop.set(True)
         try:
             self.progressbar.stop()
         except: pass
+        try:
+            self.myB.config(state=NORMAL)
+        except: pass
         self.SEB.config(state=NORMAL)
-        #self.popup.destroy()
+        if mysqlError.get():
+            self.popup.destroy()
+
+    def mysqlPopup(self):
+        if mysqlError.get():
+            try:
+                e = self.callback_queue.get()
+                error_message="MySQL Error %d: %s" % (e.args[0],e.args[1])
+                popupMySQL = Toplevel(self)
+                popupMySQL.title("MySQL Error %d" % e.args[0])
+                msg = Message(popupMySQL, text=error_message, width=300)
+                msg.pack()
+                button = Button(popupMySQL, text="Dismiss", command=popupMySQL.destroy)
+                button.pack()
+                self.stopButton()
+            except:
+                pass
+        else:
+            self.master.after(200, self.mysqlPopup)
 
     def sendout(self):
         if testemailstatus.get():
@@ -70,7 +97,6 @@ class Application(Frame):
                     db = mysql.connect(host = config.get('mysql', 'server'), port = int(config.get('mysql', 'port')), user = config.get('mysql', 'username'), passwd = config.get('mysql', 'password'), db = config.get('mysql', 'database'))
                     cur = db.cursor()
                     cur.execute(config.get('mysql', 'sql'))
-                    
                     rows = cur.fetchall()
                     for i, row in enumerate(rows):
                          TO = [row[0]]
@@ -82,17 +108,9 @@ class Application(Frame):
                     self.stopButton()
                     db.close()
                 except mysql.Error, e:
-                    top = Toplevel()
                     TO = config.get('email', 'to')
-                    top.title("MySQL Error %d" % e.args[0])
-                    error_message="MySQL Error %d: %s" % (e.args[0],e.args[1])
-                    msg = Message(top, text=error_message, width=225)
-                    msg.pack()
-
-                    button = Button(top, text="Dismiss", command=top.destroy)
-                    button.pack()
-                    print error_message
-                                    
+                    mysqlError.set(True)
+                    self.callback_queue.put(e)
             else:
                 print "MySQL turned off."
                 TO = [config.get('email', 'to')]
@@ -111,7 +129,7 @@ class Application(Frame):
         msg['To'] = COMMASPACE.join(TO)
         msg.preamble = 'Test email preamble'
         msg.date = email.utils.formatdate()
-        
+
         # Assume we know that the image files are all in PNG format
         try:
                 for file in pngfiles:
@@ -128,10 +146,10 @@ class Application(Frame):
 
         # Send the email via our own SMTP server.
         try:
-            #s = smtplib.SMTP(SERVER)
+            s = smtplib.SMTP(SERVER)
             #s.sendmail(FROM, TO, msg.as_string())
-            #s.quit()
-            print('Emails sent!')
+            s.quit()
+
         except smtplib.SMTPException, e:
             top = Toplevel()
             TO = config.get('email', 'to')
@@ -162,7 +180,7 @@ class Application(Frame):
         e=Entry(self,textvariable=smtpserver)
         e.insert(END, config.get('email', 'smtpserver'))
         e.grid(row=0, column=1, sticky=W)
-        
+
         Label(self, text="From", justify=LEFT).grid(row=1, sticky=E)
         e=Entry(self, textvariable=fromemail)
         e.insert(END, config.get('email', 'from'))
@@ -174,13 +192,13 @@ class Application(Frame):
         e.grid(row=2, column=1, sticky=W)
         myB=Checkbutton(self, text="Test Email", variable=testemailstatus)
         myB.grid(row=3, column=2, sticky=E)
-        
+
         Label(self, text="Subject", justify=LEFT).grid(row=2, sticky=E)
         e=Entry(self, textvariable=subject)
         e.insert(END, config.get('email', 'subject'))
         e.grid(row=3, column=1, sticky=W)
 
-        
+
         txt_frm = Frame(self, width=600, height=400)
         txt_frm.grid(row=6, columnspan=10)
         # ensure a consistent GUI size
@@ -188,12 +206,12 @@ class Application(Frame):
         # implement stretchability
         txt_frm.grid_rowconfigure(0, weight=1)
         txt_frm.grid_columnconfigure(0, weight=1)
-        
+
         xscrollbar = Scrollbar(txt_frm, orient=HORIZONTAL)
         xscrollbar.grid(row=1, sticky='nsew')
         yscrollbar = Scrollbar(txt_frm)
         yscrollbar.grid(row=0, column=1, sticky='nsew')
-        
+
         self.htmlbox = Text(txt_frm, wrap=NONE,
             xscrollcommand=xscrollbar.set,
             yscrollcommand=yscrollbar.set)
@@ -211,7 +229,7 @@ class Application(Frame):
         self.htmlbox.focus_set()
         xscrollbar.config(command=self.htmlbox.xview)
         yscrollbar.config(command=self.htmlbox.yview)
-        
+
         Button(self, text="Save settings", command=saveSettings).grid(row=15, column=0)
         self.SEB = SEB = Button(self, text="Send Email", command=self.send)
         SEB.grid(row=15, column=1)
@@ -241,10 +259,10 @@ class Application(Frame):
     def saveFile(self):
         ftypes = [('HTML files', '*.html'), ('All files', '*')]
         f = tkFileDialog.asksaveasfile(mode='w', defaultextension=".html", filetypes = ftypes)
-        
+
         if f is None: # asksaveasfile return `None` if dialog closed with "cancel".
             return
-        
+
         text2save = self.htmlbox.get('1.0', END).strip().encode('utf-8') # starts from `1.0`, not `0.0`
         f.write(text2save)
         f.close() # `()` was missing.
@@ -256,6 +274,9 @@ class Application(Frame):
         Frame.__init__(self, master)
         self.pack()
         self.createWidgets()
+        self.mysqlPopup()
+        #somewhere accessible to both:
+        self.callback_queue = Queue.Queue()
 
 class MySQLTab(Frame):
     def createWidgets(self):
@@ -271,7 +292,7 @@ class MySQLTab(Frame):
                 config.write(f)
         if config.get('mysql', 'status') == 'True':
             mysqlactive.set(True)
-        
+
         Label(self, text="Username", justify=LEFT).grid(row=0, sticky=E)
         e=Entry(self,textvariable=username)
         e.insert(END, config.get('mysql', 'username'))
@@ -299,7 +320,7 @@ class MySQLTab(Frame):
 
         myB = Checkbutton(self, text="Turn MySQL On", variable=mysqlactive, onvalue = True, offvalue = False)
         myB.grid(row=5, columnspan=10, sticky=W)
-        
+
         txt_frm = Frame(self, width=600, height=400)
         txt_frm.grid(row=6, columnspan=10)
         # ensure a consistent GUI size
@@ -307,12 +328,12 @@ class MySQLTab(Frame):
         # implement stretchability
         txt_frm.grid_rowconfigure(0, weight=1)
         txt_frm.grid_columnconfigure(0, weight=1)
-        
+
         xscrollbar = Scrollbar(txt_frm, orient=HORIZONTAL)
         xscrollbar.grid(row=1, sticky='nsew')
         yscrollbar = Scrollbar(txt_frm)
         yscrollbar.grid(row=0, column=1, sticky='nsew')
-        
+
         self.sqlbox = Text(txt_frm, wrap=NONE,
             xscrollcommand=xscrollbar.set,
             yscrollcommand=yscrollbar.set)
@@ -347,7 +368,7 @@ if not config.has_section('email'):
     config.set('email', 'from', '')
     config.set('email', 'to', '')
     config.set('email', 'subject', '')
-                       
+
 with open('config.ini', 'w') as f:
     config.write(f)
 
@@ -356,6 +377,7 @@ root.title("Email Marketing")
 #root.geometry('1000x700+0+0')
 mysqlactive = BooleanVar()
 testemailstatus = BooleanVar()
+mysqlError = BooleanVar()
 t1_stop = BooleanVar()
 password = StringVar()
 username = StringVar()
@@ -380,6 +402,6 @@ note.add(tab1, text = "Main")
 note.add(tab2, text = "MySQL")
 note.add(tab3, text = "Info")
 note.pack()
-
+            
 root.mainloop()
 root.destroy()
