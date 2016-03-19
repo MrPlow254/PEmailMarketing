@@ -59,9 +59,6 @@ class Application(Frame):
         #self.popup.destroy()
 
     def sendout(self):
-        SERVER = config.get('email', 'smtpserver')
-        COMMASPACE = ', '
-        FROM = config.get('email', 'from')
         if testemailstatus.get():
             TO = [config.get('email', 'to')]
             print TO
@@ -77,8 +74,8 @@ class Application(Frame):
                     rows = cur.fetchall()
                     for i, row in enumerate(rows):
                          TO = [row[0]]
-                         #v.set("Email %d: %s" % (i, TO))
                          v.set("Email %d" % (i))
+                         self.setup(TO)
                          if t1_stop.get():
                              break
                     v.set("Email %d: %s" % (i, TO[0]))
@@ -100,6 +97,10 @@ class Application(Frame):
                 print "MySQL turned off."
                 TO = [config.get('email', 'to')]
 
+    def setup(self, TO):
+        SERVER = config.get('email', 'smtpserver')
+        COMMASPACE = ', '
+        FROM = config.get('email', 'from')
         subject = config.get('email', 'subject')
         # Create the container (outer) email message.
         msg = MIMEMultipart()
@@ -127,11 +128,10 @@ class Application(Frame):
 
         # Send the email via our own SMTP server.
         try:
-                #s = smtplib.SMTP(SERVER)
-                #s.sendmail(FROM, TO, msg.as_string())
-                #s.quit()
-                #print('Emails sent!')
-            s=1
+            #s = smtplib.SMTP(SERVER)
+            #s.sendmail(FROM, TO, msg.as_string())
+            #s.quit()
+            print('Emails sent!')
         except smtplib.SMTPException, e:
             top = Toplevel()
             TO = config.get('email', 'to')
