@@ -1,7 +1,7 @@
 __doc__ = info = '''
 This program was written by Nicholas Smith - nicholas-smith.tk
 
-Version 1.0.1
+Version 1.0.2
 This script has three main classes:
 Application - Page layouts
 Tab - Basic tab used by TabBar for main functionality
@@ -39,11 +39,11 @@ class Application(Frame):
         i=0
         t1_stop.set(False)
         self.popup = popup = Toplevel(self)
-        Label(popup, text="Please wait emails send...").grid(row=0)
-        Label(self.popup, textvariable=v).grid(row=1)
-        v.set("Email number: %d" % (i))
+        Label(popup, text="Please wait emails send...").grid(row=0, columnspan=2)
+        Label(self.popup, textvariable=v).grid(row=1, columnspan=2)
+        v.set("Email: %d" % (i))
         self.progressbar = progressbar = ttk.Progressbar(popup, orient=HORIZONTAL, length=200, mode='indeterminate')
-        progressbar.grid(row=2)
+        progressbar.grid(row=2, columnspan=2)
         progressbar.start()
         t=threading.Thread(target=self.sendout)
         t.start()
@@ -52,7 +52,9 @@ class Application(Frame):
         
     def stopButton(self):
         t1_stop.set(True)
-        self.progressbar.stop()
+        try:
+            self.progressbar.stop()
+        except: pass
         self.SEB.config(state=NORMAL)
         #self.popup.destroy()
 
@@ -75,10 +77,11 @@ class Application(Frame):
                     rows = cur.fetchall()
                     for i, row in enumerate(rows):
                          TO = [row[0]]
-                         v.set("Email %d: %s" % (i, TO))
+                         #v.set("Email %d: %s" % (i, TO))
+                         v.set("Email %d" % (i))
                          if t1_stop.get():
                              break
-                    #self.progressbar.stop()
+                    v.set("Email %d: %s" % (i, TO[0]))
                     self.stopButton()
                     db.close()
                 except mysql.Error, e:
