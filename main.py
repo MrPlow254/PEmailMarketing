@@ -36,28 +36,29 @@ BASE = RAISED
 SELECTED = FLAT
 
 class Application(Frame):
-    
     def send(self):
         self.SEB.config(state=DISABLED)
         i=0
         t1_stop.set(False)
         mysqlError.set(False)
         self.popup = popup = Toplevel(self)
-        Label(popup, text="Please wait emails send...").grid(row=0, columnspan=2)
+        Label(self.popup, text="Please wait emails send...").grid(row=0, columnspan=2)
         Label(self.popup, textvariable=v).grid(row=1, columnspan=2)
         v.set("Email: %d" % (i))
-        self.progressbar = progressbar = ttk.Progressbar(popup, orient=HORIZONTAL, length=200, mode='indeterminate')
+        self.progressbar = progressbar = ttk.Progressbar(self.popup, orient=HORIZONTAL, length=200, mode='indeterminate')
         progressbar.grid(row=2, columnspan=2)
         progressbar.start()
         t=threading.Thread(target=self.sendout)
         t.start()
-        Button(popup, text="Stop", command=self.stopButton).grid(row=3, column=0)
-        self.myB=myB=Button(popup, text="Dismiss", command=self.popup.destroy)
+        self.myS=myS=Button(self.popup, text="Stop", command=self.stopButton)
+        myS.grid(row=3, column=0)
+        self.myB=myB=Button(self.popup, text="Dismiss", command=self.popup.destroy)
         myB.grid(row=3, column=1)
         myB.config(state=DISABLED)
-        
+
     def stopButton(self):
         t1_stop.set(True)
+        
         try:
             self.progressbar.stop()
         except: pass
@@ -65,8 +66,10 @@ class Application(Frame):
             self.myB.config(state=NORMAL)
         except: pass
         self.SEB.config(state=NORMAL)
-        if mysqlError.get():
+        if mysqlError.get() or smtpError.get():
             self.popup.destroy()
+        else:
+            self.myS.config(state=DISABLED)
 
     def mysqlPopup(self):
         if mysqlError.get():
@@ -84,6 +87,23 @@ class Application(Frame):
                 pass
         else:
             self.master.after(200, self.mysqlPopup)
+
+    def smtpPopup(self):
+        if smtpError.get():
+            try:
+                e = self.callback_queue.get()
+                error_message="SMTP Error %d: %s" % (e.args[0],e.args[1])
+                popupSMTP = Toplevel(self)
+                popupSMTP.title("SMTP Error %d" % e.args[0])
+                msg = Message(popupSMTP, text=error_message, width=300)
+                msg.pack()
+                button = Button(popupSMTP, text="Dismiss", command=popupSMTP.destroy)
+                button.pack()
+                self.stopButton()
+            except:
+                pass
+        else:
+            self.master.after(200, self.smtpPopup)
 
     def sendout(self):
         if testemailstatus.get():
@@ -147,20 +167,31 @@ class Application(Frame):
         # Send the email via our own SMTP server.
         try:
             s = smtplib.SMTP(SERVER)
-            #s.sendmail(FROM, TO, msg.as_string())
-            s.quit()
+        except smtplib.socket.gaierror, e:
+            #top = Toplevel()
+            #TO = config.get('email', 'to')
+            #top.title("SMTP Error %d" % e.args[0])
+            error_message="SMTP Error %d: %s" % (e.args[0],e.args[1])
+            #msg = Message(top, text=error_message, width=225)
+            #msg.pack()
 
-        except smtplib.SMTPException, e:
-            top = Toplevel()
-            TO = config.get('email', 'to')
-            top.title("MySQL Error %d" % e.args[0])
-            error_message="MySQL Error %d: %s" % (e.args[0],e.args[1])
-            msg = Message(top, text=error_message, width=225)
-            msg.pack()
-
-            button = Button(top, text="Dismiss", command=top.destroy)
-            button.pack()
+            #button = Button(top, text="Dismiss", command=top.destroy)
+            #button.pack()
+            smtpError.set(True)
+            self.callback_queue.put(e)
             print error_message
+            return False
+
+        try:
+            #s.sendmail(FROM, TO, msg.as_string())
+            pass
+        #except smtplib.something.senderror, errormsg:
+        #    print "Couldn't send message: %s" % (errormsg)
+        except smtp.socket.timeout:
+            print "Socket error while sending message"
+            return False
+        finally:
+            s.quit()
 
     def createWidgets(self):
         def openfile():
@@ -275,6 +306,7 @@ class Application(Frame):
         self.pack()
         self.createWidgets()
         self.mysqlPopup()
+        self.smtpPopup()
         #somewhere accessible to both:
         self.callback_queue = Queue.Queue()
 
@@ -378,6 +410,7 @@ root.title("Email Marketing")
 mysqlactive = BooleanVar()
 testemailstatus = BooleanVar()
 mysqlError = BooleanVar()
+smtpError = BooleanVar()
 t1_stop = BooleanVar()
 password = StringVar()
 username = StringVar()
@@ -402,6 +435,6 @@ note.add(tab1, text = "Main")
 note.add(tab2, text = "MySQL")
 note.add(tab3, text = "Info")
 note.pack()
-            
+
 root.mainloop()
 root.destroy()
