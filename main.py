@@ -1,7 +1,7 @@
 __doc__ = info = '''
 This program was written by Nicholas Smith - nicholas-smith.tk
 
-Version 1.0
+Version 1.0.1
 This script has three main classes:
 Application - Page layouts
 Tab - Basic tab used by TabBar for main functionality
@@ -35,21 +35,26 @@ SELECTED = FLAT
         
 class Application(Frame):
     def send(self):
+        self.SEB.config(state=DISABLED)
+        i=0
         t1_stop.set(False)
         self.popup = popup = Toplevel(self)
-        Label(popup, text="Please wait until the file is created").grid(row=0, column=0)
+        Label(popup, text="Please wait emails send...").grid(row=0)
+        Label(self.popup, textvariable=v).grid(row=1)
+        v.set("Email number: %d" % (i))
         self.progressbar = progressbar = ttk.Progressbar(popup, orient=HORIZONTAL, length=200, mode='indeterminate')
-        progressbar.grid(row=1, column=0)
+        progressbar.grid(row=2)
         progressbar.start()
         t=threading.Thread(target=self.sendout)
         t.start()
-        button = Button(popup, text="Stop", command=self.stop)
-        button.grid(row=2, column=0)
+        Button(popup, text="Stop", command=self.stopButton).grid(row=3, column=0)
+        Button(popup, text="Dismiss", command=self.popup.destroy).grid(row=3, column=1)
         
-    def stop(self):
+    def stopButton(self):
         t1_stop.set(True)
         self.progressbar.stop()
-        self.popup.destroy()
+        self.SEB.config(state=NORMAL)
+        #self.popup.destroy()
 
     def sendout(self):
         SERVER = config.get('email', 'smtpserver')
@@ -68,11 +73,13 @@ class Application(Frame):
                     cur.execute(config.get('mysql', 'sql'))
                     
                     rows = cur.fetchall()
-                    for row in rows:
+                    for i, row in enumerate(rows):
                          TO = [row[0]]
-                         print TO
+                         v.set("Email %d: %s" % (i, TO))
                          if t1_stop.get():
                              break
+                    #self.progressbar.stop()
+                    self.stopButton()
                     db.close()
                 except mysql.Error, e:
                     top = Toplevel()
@@ -203,8 +210,8 @@ class Application(Frame):
         yscrollbar.config(command=self.htmlbox.yview)
         
         Button(self, text="Save settings", command=saveSettings).grid(row=15, column=0)
-        Button(self, text="Send Email", command=self.send).grid(row=15, column=1)
-
+        self.SEB = SEB = Button(self, text="Send Email", command=self.send)
+        SEB.grid(row=15, column=1)
         menubar = Menu(self)
         fileMenu = Menu(menubar, tearoff=0)
         fileMenu.add_command(label="Open", command=self.openFile)
@@ -356,6 +363,7 @@ smtpserver = StringVar()
 fromemail= StringVar()
 toemail=StringVar()
 subject=StringVar()
+v=StringVar()
 
 note = Notebook(root)
 tab1 = Frame(note)
