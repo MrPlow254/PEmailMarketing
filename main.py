@@ -1,7 +1,10 @@
+__version__ = version = "1.0.5"
+__status__ = "Development"
+__copyright__ = copy  = "Copyright 2016, Nicholas Smith (nicholas-smith.tk)"
 __doc__ = info = '''
 This program was written by Nicholas Smith - nicholas-smith.tk
 
-Version 1.0.4
+Version %s
 
 Python 2.7.11
 
@@ -14,7 +17,9 @@ To Do:
 - Option to update table with the status of the email to prevent bad emails from staying
 in the list.
 
-'''
+%s
+''' % (version, copy)
+
 # Import smtplib for the actual sending function
 import smtplib, sys, tkFileDialog, MySQLdb as mysql, threading
 from Tkinter import *
@@ -27,6 +32,8 @@ from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 import email.utils
+from email.header import Header
+from email.utils import formataddr
 import Queue
 
 BASE = RAISED
@@ -137,7 +144,7 @@ class Application(Frame):
         SERVER = config.get('smtp', 'server')
         smtpport = config.getint('smtp', 'port')
         COMMASPACE = ', '
-        FROM = config.get('email', 'from')
+        FROM = formataddr((str(config.get('email', 'fromn')), config.get('email', 'from')))
         subject = config.get('email', 'subject')
         # Create the container (outer) email message.
         msg = MIMEMultipart()
@@ -158,6 +165,7 @@ class Application(Frame):
             return False
 
         try:
+
             if config.get('smtp', 'username') != '':
                 s.login(config.get('smtp', 'username'), config.get('smtp', 'password'))
         except smtplib.SMTPException, errormsg:
@@ -189,6 +197,7 @@ class Application(Frame):
             config.set('smtp', 'username', smtpusername.get())
             config.set('smtp', 'password', smtppassword.get())
             config.set('email', 'From', fromemail.get())
+            config.set('email', 'FromN', fromname.get())
             config.set('email', 'To', toemail.get())
             config.set('email', 'Bounce', toemail.get())
             config.set('email', 'subject', subject.get())
@@ -220,22 +229,27 @@ class Application(Frame):
         e.insert(END, config.get('smtp', 'password'))
         e.grid(row=2, column=3, sticky=W)
 
-        Label(self, text="From:", justify=LEFT).grid(row=1, sticky=E)
-        e=Entry(self, textvariable=fromemail)
-        e.insert(END, config.get('email', 'from'))
+        Label(self, text="From Name:", justify=LEFT).grid(row=1, sticky=E)
+        e=Entry(self, textvariable=fromname)
+        e.insert(END, config.get('email', 'fromn'))
         e.grid(row=1, column=1, sticky=W)
 
-        Label(self, text="To Test Email:", justify=LEFT).grid(row=2, sticky=E)
+        Label(self, text="From:", justify=LEFT).grid(row=2, sticky=E)
+        e=Entry(self, textvariable=fromemail)
+        e.insert(END, config.get('email', 'from'))
+        e.grid(row=2, column=1, sticky=W)
+
+        Label(self, text="To Test Email:", justify=LEFT).grid(row=3, sticky=E)
         e=Entry(self, textvariable=toemail)
         e.insert(END, config.get('email', 'to'))
-        e.grid(row=2, column=1, sticky=W)
+        e.grid(row=3, column=1, sticky=W)
         myB=Checkbutton(self, text="Test Email:", variable=testemailstatus)
         myB.grid(row=3, column=2, sticky=E)
 
-        Label(self, text="Subject:", justify=LEFT).grid(row=3, sticky=E)
+        Label(self, text="Subject:", justify=LEFT).grid(row=4, sticky=E)
         e=Entry(self, textvariable=subject)
         e.insert(END, config.get('email', 'subject'))
-        e.grid(row=3, column=1, sticky=W)
+        e.grid(row=4, column=1, sticky=W)
 
 
         txt_frm = Frame(self, width=600, height=400)
@@ -417,6 +431,7 @@ if not config.has_section('mysql'):
 if not config.has_section('email'):
     config.add_section('email')
     config.set('email', 'from', '')
+    config.set('email', 'fromn', '')
     config.set('email', 'to', '')
     config.set('email', 'subject', '')
 
@@ -447,6 +462,7 @@ smtpport = StringVar()
 smtpusername = StringVar()
 smtppassword = StringVar()
 fromemail= StringVar()
+fromname=StringVar()
 toemail=StringVar()
 subject=StringVar()
 v=StringVar()
