@@ -1,26 +1,24 @@
 __doc__ = info = '''
 This program was written by Nicholas Smith - nicholas-smith.tk
 
-Version 1.0.2
-This script has three main classes:
-Application - Page layouts
-Tab - Basic tab used by TabBar for main functionality
-TabBar - The tab bar that is placed above tab bodies (Tabs)
+Version 1.0.4
 
-It uses a pretty basic structure:
-root
--->TabBar(root, init_name) (For switching tabs)
--->Tab    (Place holder for content)
-	\t-->content (content of the tab; parent=Tab)
--->Tab    (Place holder for content)
-	\t-->content (content of the tab; parent=Tab)
--->Tab    (Place holder for content)
-	\t-->content (content of the tab; parent=Tab)
-etc.
+Python 2.7.11
+
+This script can get emails from any mysql table structure. It will send out the html file
+on the the Main (SMTP) tab. It is possible to import the html from any filetype. It is also
+possible to save the html file to any filetype (default html) if needed. The html section is
+not saved in the program and will need to be loaded or typed each time the program is opened.
+
+To Do:
+- Option to update table with the status of the email to prevent bad emails from staying
+in the list.
+
 '''
 # Import smtplib for the actual sending function
 import smtplib, sys, tkFileDialog, MySQLdb as mysql, threading
 from Tkinter import *
+import tkMessageBox as messagebox
 from ttk import *
 from ConfigParser import SafeConfigParser
 import ttk
@@ -30,7 +28,6 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 import email.utils
 import Queue
-
 
 BASE = RAISED
 SELECTED = FLAT
@@ -58,7 +55,6 @@ class Application(Frame):
 
     def stopButton(self):
         t1_stop.set(True)
-        
         try:
             self.progressbar.stop()
         except: pass
@@ -108,13 +104,14 @@ class Application(Frame):
     def sendout(self):
         if testemailstatus.get():
             TO = [config.get('email', 'to')]
-            print TO
-            print "Testing Email."
+            v.set("Email 1: %s" % TO[0])
+            self.setup(TO)
+            self.stopButton()
         else:
             # Connect to mysql
             if mysqlactive.get():
                 try:
-                    db = mysql.connect(host = config.get('mysql', 'server'), port = int(config.get('mysql', 'port')), user = config.get('mysql', 'username'), passwd = config.get('mysql', 'password'), db = config.get('mysql', 'database'))
+                    db = mysql.connect(host = config.get('mysql', 'server'), port = config.getint('mysql', 'port'), user = config.get('mysql', 'username'), passwd = config.get('mysql', 'password'), db = config.get('mysql', 'database'))
                     cur = db.cursor()
                     cur.execute(config.get('mysql', 'sql'))
                     rows = cur.fetchall()
@@ -132,64 +129,52 @@ class Application(Frame):
                     mysqlError.set(True)
                     self.callback_queue.put(e)
             else:
-                print "MySQL turned off."
                 TO = [config.get('email', 'to')]
+                v.set("Email 1: %s" % TO[0])
+                self.setup(TO)
 
     def setup(self, TO):
-        SERVER = config.get('email', 'smtpserver')
+        SERVER = config.get('smtp', 'server')
+        smtpport = config.getint('smtp', 'port')
         COMMASPACE = ', '
         FROM = config.get('email', 'from')
         subject = config.get('email', 'subject')
         # Create the container (outer) email message.
         msg = MIMEMultipart()
         msg['Subject'] = '%s' % subject
-        # me == the sender's email address
-        # family = the list of all recipients' email addresses
         msg['From'] = FROM
         msg['To'] = COMMASPACE.join(TO)
-        msg.preamble = 'Test email preamble'
+        msg.preamble = 'PEmailMarketing v1.x'
         msg.date = email.utils.formatdate()
-
-        # Assume we know that the image files are all in PNG format
-        try:
-                for file in pngfiles:
-                        # Open the files in binary mode.  Let the MIMEImage class automatically
-                        # guess the specific image type.
-                        fp = open(file, 'rb')
-                        img = MIMEImage(fp.read())
-                        fp.close()
-                        msg.attach(img)
-        except: pass
-
         html = MIMEText(self.htmlbox.get('1.0', END).strip().encode('utf-8'), 'html')
         msg.attach(html)
-
         # Send the email via our own SMTP server.
         try:
-            s = smtplib.SMTP(SERVER)
+            s = smtplib.SMTP(SERVER, smtpport)
         except smtplib.socket.gaierror, e:
-            #top = Toplevel()
-            #TO = config.get('email', 'to')
-            #top.title("SMTP Error %d" % e.args[0])
             error_message="SMTP Error %d: %s" % (e.args[0],e.args[1])
-            #msg = Message(top, text=error_message, width=225)
-            #msg.pack()
-
-            #button = Button(top, text="Dismiss", command=top.destroy)
-            #button.pack()
             smtpError.set(True)
             self.callback_queue.put(e)
-            print error_message
             return False
 
         try:
-            #s.sendmail(FROM, TO, msg.as_string())
-            pass
-        #except smtplib.something.senderror, errormsg:
-        #    print "Couldn't send message: %s" % (errormsg)
-        except smtp.socket.timeout:
-            print "Socket error while sending message"
+            if config.get('smtp', 'username') != '':
+                s.login(config.get('smtp', 'username'), config.get('smtp', 'password'))
+        except smtplib.SMTPException, errormsg:
+            print errormsg
+
+        try:
+            s.sendmail(FROM, TO, msg.as_string())
+        except smtplib.SMTPException, errormsg:
+            smtpError.set(True)
+            e="Couldn't send message: %s" % (errormsg)
+            self.callback_queue.put(e)
             return False
+##        except smtplib.socket.timeout:
+##            smtpError.set(True)
+##            e="Socket error while sending message"
+##            self.callback_queue.put(e)
+##            return False
         finally:
             s.quit()
 
@@ -199,32 +184,55 @@ class Application(Frame):
             f = open(filename)
             f.read()
         def saveSettings():
-            config.set('email', 'smtpserver', smtpserver.get())
+            config.set('smtp', 'server', smtpserver.get())
+            config.set('smtp', 'port', smtpport.get())
+            config.set('smtp', 'username', smtpusername.get())
+            config.set('smtp', 'password', smtppassword.get())
             config.set('email', 'From', fromemail.get())
             config.set('email', 'To', toemail.get())
             config.set('email', 'Bounce', toemail.get())
             config.set('email', 'subject', subject.get())
             with open('config.ini', 'w') as f:
                 config.write(f)
+        def select_all(event):
+            self.htmlbox.tag_add(SEL, "1.0", END)
+            self.htmlbox.mark_set(INSERT, "1.0")
+            self.htmlbox.see(INSERT)
+            return 'break'
 
-        Label(self, text="SMTP Server", justify=LEFT).grid(row=0, sticky=E)
+        Label(self, text="SMTP Server:", justify=LEFT).grid(row=0, sticky=E)
         e=Entry(self,textvariable=smtpserver)
-        e.insert(END, config.get('email', 'smtpserver'))
+        e.insert(END, config.get('smtp', 'server'))
         e.grid(row=0, column=1, sticky=W)
 
-        Label(self, text="From", justify=LEFT).grid(row=1, sticky=E)
+        Label(self, text="SMTP Port:", justify=LEFT).grid(row=0, column=2, sticky=E)
+        e=Entry(self,textvariable=smtpport)
+        e.insert(END, config.get('smtp', 'port'))
+        e.grid(row=0, column=3, sticky=W)
+
+        Label(self, text="SMTP Username:", justify=LEFT).grid(row=1, column=2, sticky=E)
+        e=Entry(self,textvariable=smtpusername)
+        e.insert(END, config.get('smtp', 'username'))
+        e.grid(row=1, column=3, sticky=W)
+
+        Label(self, text="SMTP Password:", justify=LEFT).grid(row=2, column=2, sticky=E)
+        e=Entry(self,textvariable=smtppassword,show="*")
+        e.insert(END, config.get('smtp', 'password'))
+        e.grid(row=2, column=3, sticky=W)
+
+        Label(self, text="From:", justify=LEFT).grid(row=1, sticky=E)
         e=Entry(self, textvariable=fromemail)
         e.insert(END, config.get('email', 'from'))
         e.grid(row=1, column=1, sticky=W)
 
-        Label(self, text="To Test Email", justify=LEFT).grid(row=2, sticky=E)
+        Label(self, text="To Test Email:", justify=LEFT).grid(row=2, sticky=E)
         e=Entry(self, textvariable=toemail)
         e.insert(END, config.get('email', 'to'))
         e.grid(row=2, column=1, sticky=W)
-        myB=Checkbutton(self, text="Test Email", variable=testemailstatus)
+        myB=Checkbutton(self, text="Test Email:", variable=testemailstatus)
         myB.grid(row=3, column=2, sticky=E)
 
-        Label(self, text="Subject", justify=LEFT).grid(row=2, sticky=E)
+        Label(self, text="Subject:", justify=LEFT).grid(row=3, sticky=E)
         e=Entry(self, textvariable=subject)
         e.insert(END, config.get('email', 'subject'))
         e.grid(row=3, column=1, sticky=W)
@@ -258,6 +266,7 @@ class Application(Frame):
     </body>
 </html>""")
         self.htmlbox.focus_set()
+        self.htmlbox.bind("<Control-Key-a>", select_all)
         xscrollbar.config(command=self.htmlbox.xview)
         yscrollbar.config(command=self.htmlbox.yview)
 
@@ -290,13 +299,11 @@ class Application(Frame):
     def saveFile(self):
         ftypes = [('HTML files', '*.html'), ('All files', '*')]
         f = tkFileDialog.asksaveasfile(mode='w', defaultextension=".html", filetypes = ftypes)
-
-        if f is None: # asksaveasfile return `None` if dialog closed with "cancel".
+        if f is None:
             return
-
-        text2save = self.htmlbox.get('1.0', END).strip().encode('utf-8') # starts from `1.0`, not `0.0`
+        text2save = self.htmlbox.get('1.0', END).strip().encode('utf-8')
         f.write(text2save)
-        f.close() # `()` was missing.
+        f.close()
 
     def onError(self):
         box.showerror("Error", "Could not open file")
@@ -307,7 +314,6 @@ class Application(Frame):
         self.createWidgets()
         self.mysqlPopup()
         self.smtpPopup()
-        #somewhere accessible to both:
         self.callback_queue = Queue.Queue()
 
 class MySQLTab(Frame):
@@ -322,30 +328,37 @@ class MySQLTab(Frame):
             config.set('mysql', 'SQL', self.sqlbox.get('1.0', END).strip().encode('utf-8'))
             with open('config.ini', 'w') as f:
                 config.write(f)
+
+        def select_all(event):
+            self.sqlbox.tag_add(SEL, "1.0", END)
+            self.sqlbox.mark_set(INSERT, "1.0")
+            self.sqlbox.see(INSERT)
+            return 'break'
+
         if config.get('mysql', 'status') == 'True':
             mysqlactive.set(True)
 
-        Label(self, text="Username", justify=LEFT).grid(row=0, sticky=E)
+        Label(self, text="Username:", justify=LEFT).grid(row=0, sticky=E)
         e=Entry(self,textvariable=username)
         e.insert(END, config.get('mysql', 'username'))
         e.grid(row=0, column=1, sticky=W)
 
-        Label(self, text="Password", justify=LEFT).grid(row=1, sticky=E)
+        Label(self, text="Password:", justify=LEFT).grid(row=1, sticky=E)
         e=Entry(self, textvariable=password,show="*")
         e.insert(END, config.get('mysql', 'password'))
         e.grid(row=1, column=1, sticky=W)
 
-        Label(self, text="Database", justify=LEFT).grid(row=2, sticky=E)
+        Label(self, text="Database:", justify=LEFT).grid(row=2, sticky=E)
         e=Entry(self, textvariable=database)
         e.insert(END, config.get('mysql', 'database'))
         e.grid(row=2, column=1, sticky=W)
 
-        Label(self, text="Server", justify=LEFT).grid(row=3, sticky=E)
+        Label(self, text="Server:", justify=LEFT).grid(row=3, sticky=E)
         e=Entry(self, textvariable=server)
         e.insert(END, config.get('mysql', 'server'))
         e.grid(row=3, column=1, sticky=W)
 
-        Label(self, text="Port", justify=LEFT).grid(row=4, sticky=E)
+        Label(self, text="Port:", justify=LEFT).grid(row=4, sticky=E)
         e=Entry(self, textvariable=port)
         e.insert(END, config.get('mysql', 'port'))
         e.grid(row=4, column=1, sticky=W)
@@ -355,9 +368,7 @@ class MySQLTab(Frame):
 
         txt_frm = Frame(self, width=600, height=400)
         txt_frm.grid(row=6, columnspan=10)
-        # ensure a consistent GUI size
         txt_frm.grid_propagate(False)
-        # implement stretchability
         txt_frm.grid_rowconfigure(0, weight=1)
         txt_frm.grid_columnconfigure(0, weight=1)
 
@@ -371,16 +382,25 @@ class MySQLTab(Frame):
             yscrollcommand=yscrollbar.set)
         self.sqlbox.grid(row=0)
         self.sqlbox.focus_set()
+        self.sqlbox.bind("<Control-Key-a>", select_all)
         self.sqlbox.insert(END, config.get('mysql', 'sql'))
         xscrollbar.config(command=self.sqlbox.xview)
         yscrollbar.config(command=self.sqlbox.yview)
         Button(self, text="Save settings", command=saveSettings).grid(row=15)
 
-
     def __init__(self, master=None):
         Frame.__init__(self, master)
         self.pack()
         self.createWidgets()
+
+def on_closing():
+    if messagebox.askokcancel("Quit", "Do you want to quit?"):
+        root.quit()
+        #root.destroy()
+def on_esc(event):
+    if messagebox.askokcancel("Quit", "Do you want to quit?"):
+        root.quit()
+        root.destroy()
 
 config = SafeConfigParser()
 config.read('config.ini')
@@ -396,17 +416,22 @@ if not config.has_section('mysql'):
 
 if not config.has_section('email'):
     config.add_section('email')
-    config.set('email', 'SMTPServer', '')
     config.set('email', 'from', '')
     config.set('email', 'to', '')
     config.set('email', 'subject', '')
+
+if not config.has_section('smtp'):
+    config.add_section('smtp')
+    config.set('smtp', 'Server', '')
+    config.set('smtp', 'Port', '25')
+    config.set('smtp', 'username', '')
+    config.set('smtp', 'password', '')
 
 with open('config.ini', 'w') as f:
     config.write(f)
 
 root = Tk()
-root.title("Email Marketing")
-#root.geometry('1000x700+0+0')
+root.title("PEmail Marketing")
 mysqlactive = BooleanVar()
 testemailstatus = BooleanVar()
 mysqlError = BooleanVar()
@@ -418,6 +443,9 @@ database = StringVar()
 server = StringVar()
 port = StringVar()
 smtpserver = StringVar()
+smtpport = StringVar()
+smtpusername = StringVar()
+smtppassword = StringVar()
 fromemail= StringVar()
 toemail=StringVar()
 subject=StringVar()
@@ -436,5 +464,7 @@ note.add(tab2, text = "MySQL")
 note.add(tab3, text = "Info")
 note.pack()
 
+root.protocol("WM_DELETE_WINDOW", on_closing)
+root.bind('<Escape>', on_esc)
 root.mainloop()
 root.destroy()
