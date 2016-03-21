@@ -77,11 +77,15 @@ class Application(Frame):
                 error_message="MySQL Error %d: %s" % (e.args[0],e.args[1])
                 popupMySQL = Toplevel(self)
                 popupMySQL.title("MySQL Error %d" % e.args[0])
+                popupMySQL.lift()
+                popupMySQL.grab_set()
                 msg = Message(popupMySQL, text=error_message, width=300)
                 msg.pack()
                 button = Button(popupMySQL, text="Dismiss", command=popupMySQL.destroy)
                 button.pack()
                 self.stopButton()
+                mysqlError.set(False)
+                self.master.after(200, self.mysqlPopup)
             except:
                 pass
         else:
@@ -94,11 +98,15 @@ class Application(Frame):
                 error_message="SMTP Error %d: %s" % (e.args[0],e.args[1])
                 popupSMTP = Toplevel(self)
                 popupSMTP.title("SMTP Error %d" % e.args[0])
+                popupSMTP.lift()
+                popupSMTP.grab_set()
                 msg = Message(popupSMTP, text=error_message, width=300)
                 msg.pack()
                 button = Button(popupSMTP, text="Dismiss", command=popupSMTP.destroy)
                 button.pack()
                 self.stopButton()
+                smtpError.set(False)
+                self.master.after(200, self.smtpPopup)
             except:
                 pass
         else:
