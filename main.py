@@ -1,41 +1,37 @@
-__version__ = version = "1.0.5"
+__version__ = version = "1.0.6"
 __status__ = "Development"
 __copyright__ = copy  = "Copyright 2016, Nicholas Smith (nicholas-smith.tk)"
-__doc__ = info = '''
-This program was written by Nicholas Smith - nicholas-smith.tk
-
-Version %s
-
-Python 2.7.11
-
+__doc__ = info = '''This program was written by Nicholas Smith - nicholas-smith.tk\n
+Version %s\n
+Python 2.7.11\n
+Modules used:
+MySQLdb\n
+Since version 1.0.5:
+5 hours of research
+~40 hours of coding & debuging.
+Since version 1.0.6:
+~1 hour of coding\n
 This script can get emails from any mysql table structure. It will send out the html file
 on the the Main (SMTP) tab. It is possible to import the html from any filetype. It is also
 possible to save the html file to any filetype (default html) if needed. The html section is
-not saved in the program and will need to be loaded or typed each time the program is opened.
-
-To Do:
+not saved in the program and will need to be loaded or typed each time the program is opened.\n
+To Do:\n
 - Option to update table with the status of the email to prevent bad emails from staying
-in the list.
-
+in the list.\n
 %s
 ''' % (version, copy)
 
 # Import smtplib for the actual sending function
-import smtplib, sys, tkFileDialog, MySQLdb as mysql, threading
-from Tkinter import *
-import tkMessageBox as messagebox
-from ttk import *
+import email.utils, MySQLdb as mysql, smtplib, sys, threading, tkFileDialog, ttk
+import tkMessageBox as messagebox, Queue
 from ConfigParser import SafeConfigParser
-import ttk
-# Here are the email package modules we'll need
 from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-import email.utils
 from email.header import Header
 from email.utils import formataddr
-import Queue
-
+from Tkinter import *
+from ttk import *
 BASE = RAISED
 SELECTED = FLAT
 
