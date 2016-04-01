@@ -1,4 +1,4 @@
-__version__ = version = "1.0.6"
+__version__ = version = "1.0.7"
 __status__ = "Development"
 __copyright__ = copy  = "Copyright 2016, Nicholas Smith (nicholas-smith.tk)"
 __doc__ = info = '''This program was written by Nicholas Smith - nicholas-smith.tk\n
@@ -10,8 +10,11 @@ Since version 1.0.5:
 5 hours of research
 ~40 hours of coding & debuging.
 Since version 1.0.6:
-~1 hour of coding\n
-This script can get emails from any mysql table structure. It will send out the html file
+~1 hour of coding
+Since version 1.0.7:
+~3 hours of coding
+
+\nThis script can get emails from any mysql table structure. It will send out the html file
 on the the Main (SMTP) tab. It is possible to import the html from any filetype. It is also
 possible to save the html file to any filetype (default html) if needed. The html section is
 not saved in the program and will need to be loaded or typed each time the program is opened.\n
@@ -37,6 +40,8 @@ SELECTED = FLAT
 
 class Application(Frame):
     def send(self):
+        if sending.get():
+            self.popup.destroy()
         self.SEB.config(state=DISABLED)
         i=0
         t1_stop.set(False)
@@ -55,6 +60,7 @@ class Application(Frame):
         self.myB=myB=Button(self.popup, text="Dismiss", command=self.popup.destroy)
         myB.grid(row=3, column=1)
         myB.config(state=DISABLED)
+        sending.set(True)
 
     def stopButton(self):
         t1_stop.set(True)
@@ -95,12 +101,11 @@ class Application(Frame):
         if smtpError.get():
             try:
                 e = self.callback_queue.get()
-                error_message="SMTP Error %d: %s" % (e.args[0],e.args[1])
                 popupSMTP = Toplevel(self)
-                popupSMTP.title("SMTP Error %d" % e.args[0])
+                popupSMTP.title(e)
                 popupSMTP.lift()
                 popupSMTP.grab_set()
-                msg = Message(popupSMTP, text=error_message, width=300)
+                msg = Message(popupSMTP, text=e, width=300)
                 msg.pack()
                 button = Button(popupSMTP, text="Dismiss", command=popupSMTP.destroy)
                 button.pack()
@@ -113,11 +118,39 @@ class Application(Frame):
             self.master.after(200, self.smtpPopup)
 
     def sendout(self):
+        # Send the email via our own SMTP server.
+        SERVER = config.get('smtp', 'server')
+        smtpport = config.getint('smtp', 'port')
+        html = MIMEText(self.htmlbox.get('1.0', END).strip().encode('utf-8'), 'html')
+        try:
+            self.s = smtplib.SMTP(SERVER, smtpport)
+        except smtplib.socket.gaierror, e:
+            smtpError.set(True)
+            error_message="SMTP Error %d: %s" % (e.args[0],e.args[1])
+            self.callback_queue.put(error_message)
+        except smtplib.SMTPConnectError, e:
+            smtpError.set(True)
+            error_message="Error occurred during establishment of a connection with the server."
+            self.callback_queue.put(error_message)
+        except IOError, e:
+            smtpError.set(True)
+            error_message=e
+            self.callback_queue.put(error_message)
+
+        try:
+            if config.get('smtp', 'username') != '':
+                self.s.login(config.get('smtp', 'username'), config.get('smtp', 'password'))
+        except smtplib.SMTPException, errormsg:
+            print errormsg
+
         if testemailstatus.get():
             TO = [config.get('email', 'to')]
             v.set("Email 1: %s" % TO[0])
-            self.setup(TO)
-            self.stopButton()
+            if not smtpError.get():
+                self.setup(TO, html)
+                self.stopButton()
+            else:
+                self.stopButton()
         else:
             # Connect to mysql
             if mysqlactive.get():
@@ -129,9 +162,12 @@ class Application(Frame):
                     for i, row in enumerate(rows):
                          TO = [row[0]]
                          v.set("Email %d" % (i))
-                         self.setup(TO)
+                         if not smtpError.get():
+                             self.setup(TO, html)
+                         print TO
                          if t1_stop.get():
                              break
+                    self.s.quit()
                     v.set("Email %d: %s" % (i, TO[0]))
                     self.stopButton()
                     db.close()
@@ -139,14 +175,8 @@ class Application(Frame):
                     TO = config.get('email', 'to')
                     mysqlError.set(True)
                     self.callback_queue.put(e)
-            else:
-                TO = [config.get('email', 'to')]
-                v.set("Email 1: %s" % TO[0])
-                self.setup(TO)
 
-    def setup(self, TO):
-        SERVER = config.get('smtp', 'server')
-        smtpport = config.getint('smtp', 'port')
+    def setup(self, TO, html):
         COMMASPACE = ', '
         FROM = formataddr((str(config.get('email', 'fromn')), config.get('email', 'from')))
         subject = config.get('email', 'subject')
@@ -156,39 +186,20 @@ class Application(Frame):
         msg['From'] = FROM
         msg['To'] = COMMASPACE.join(TO)
         msg.preamble = 'PEmailMarketing v1.x'
-        msg.date = email.utils.formatdate()
-        html = MIMEText(self.htmlbox.get('1.0', END).strip().encode('utf-8'), 'html')
+        msg['Date'] = email.utils.formatdate()
+        rcpt = formataddr((str(''), config.get('email', 'bounce')))
         msg.attach(html)
-        # Send the email via our own SMTP server.
         try:
-            s = smtplib.SMTP(SERVER, smtpport)
-        except smtplib.socket.gaierror, e:
-            error_message="SMTP Error %d: %s" % (e.args[0],e.args[1])
-            smtpError.set(True)
-            self.callback_queue.put(e)
-            return False
-
-        try:
-
-            if config.get('smtp', 'username') != '':
-                s.login(config.get('smtp', 'username'), config.get('smtp', 'password'))
-        except smtplib.SMTPException, errormsg:
-            print errormsg
-
-        try:
-            s.sendmail(FROM, TO, msg.as_string())
+            mail_options=[]
+            if config.get('email', 'bounce') != '':
+                self.s.sendmail(config.get('email', 'bounce'), TO, msg.as_string())
+            else:
+                self.s.sendmail(FROM, TO, msg.as_string())
         except smtplib.SMTPException, errormsg:
             smtpError.set(True)
             e="Couldn't send message: %s" % (errormsg)
             self.callback_queue.put(e)
-            return False
-##        except smtplib.socket.timeout:
-##            smtpError.set(True)
-##            e="Socket error while sending message"
-##            self.callback_queue.put(e)
-##            return False
-        finally:
-            s.quit()
+            print e
 
     def createWidgets(self):
         def openfile():
@@ -203,7 +214,7 @@ class Application(Frame):
             config.set('email', 'From', fromemail.get())
             config.set('email', 'FromN', fromname.get())
             config.set('email', 'To', toemail.get())
-            config.set('email', 'Bounce', toemail.get())
+            config.set('email', 'Bounce', bounceemail.get())
             config.set('email', 'subject', subject.get())
             with open('config.ini', 'w') as f:
                 config.write(f)
@@ -243,18 +254,22 @@ class Application(Frame):
         e.insert(END, config.get('email', 'from'))
         e.grid(row=2, column=1, sticky=W)
 
-        Label(self, text="To Test Email:", justify=LEFT).grid(row=3, sticky=E)
+        Label(self, text="Bounce:", justify=LEFT).grid(row=3, sticky=E)
+        e=Entry(self, textvariable=bounceemail)
+        e.insert(END, config.get('email', 'bounce'))
+        e.grid(row=3, column=1, sticky=W)
+
+        Label(self, text="To Test Email:", justify=LEFT).grid(row=4, sticky=E)
         e=Entry(self, textvariable=toemail)
         e.insert(END, config.get('email', 'to'))
-        e.grid(row=3, column=1, sticky=W)
+        e.grid(row=4, column=1, sticky=W)
         myB=Checkbutton(self, text="Test Email:", variable=testemailstatus)
-        myB.grid(row=3, column=2, sticky=E)
+        myB.grid(row=4, column=2, sticky=E)
 
-        Label(self, text="Subject:", justify=LEFT).grid(row=4, sticky=E)
+        Label(self, text="Subject:", justify=LEFT).grid(row=5, sticky=E)
         e=Entry(self, textvariable=subject)
         e.insert(END, config.get('email', 'subject'))
-        e.grid(row=4, column=1, sticky=W)
-
+        e.grid(row=5, column=1, sticky=W)
 
         txt_frm = Frame(self, width=600, height=400)
         txt_frm.grid(row=6, columnspan=10)
@@ -437,6 +452,7 @@ if not config.has_section('email'):
     config.set('email', 'from', '')
     config.set('email', 'fromn', '')
     config.set('email', 'to', '')
+    config.set('email', 'bounce', '')
     config.set('email', 'subject', '')
 
 if not config.has_section('smtp'):
@@ -456,6 +472,7 @@ testemailstatus = BooleanVar()
 mysqlError = BooleanVar()
 smtpError = BooleanVar()
 t1_stop = BooleanVar()
+sending = BooleanVar()
 password = StringVar()
 username = StringVar()
 database = StringVar()
@@ -467,6 +484,7 @@ smtpusername = StringVar()
 smtppassword = StringVar()
 fromemail= StringVar()
 fromname=StringVar()
+bounceemail=StringVar()
 toemail=StringVar()
 subject=StringVar()
 v=StringVar()
@@ -476,7 +494,7 @@ tab1 = Frame(note)
 tab2 = Frame(note)
 tab3 = Frame(note)
 
-Label(tab3, text="INFO:\n"+info, justify=LEFT, anchor=W, width=200).pack(side=TOP, expand=YES, fill=BOTH)
+Label(tab3, text="INFO:\n"+info, justify=LEFT, anchor=W, width=100).pack(side=TOP, expand=YES, fill=BOTH)
 Application(master=tab1)
 MySQLTab(master=tab2)
 note.add(tab1, text = "Main")
