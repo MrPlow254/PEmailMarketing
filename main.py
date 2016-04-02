@@ -1,4 +1,4 @@
-__version__ = version = "1.0.7"
+__version__ = version = "1.0.8"
 __status__ = "Development"
 __copyright__ = copy  = "Copyright 2016, Nicholas Smith (nicholas-smith.tk)"
 __doc__ = info = '''This program was written by Nicholas Smith - nicholas-smith.tk\n
@@ -13,7 +13,8 @@ Since version 1.0.6:
 ~1 hour of coding
 Since version 1.0.7:
 ~3 hours of coding
-
+Since version 1.0.8:
+~1 hour of coding
 \nThis script can get emails from any mysql table structure. It will send out the html file
 on the the Main (SMTP) tab. It is possible to import the html from any filetype. It is also
 possible to save the html file to any filetype (default html) if needed. The html section is
@@ -25,7 +26,7 @@ in the list.\n
 ''' % (version, copy)
 
 # Import smtplib for the actual sending function
-import email.utils, MySQLdb as mysql, smtplib, sys, threading, tkFileDialog, ttk
+import MySQLdb as mysql, smtplib, sys, threading, tkFileDialog
 import tkMessageBox as messagebox, Queue
 from ConfigParser import SafeConfigParser
 from email.mime.image import MIMEImage
@@ -33,6 +34,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.header import Header
 from email.utils import formataddr
+from email.utils import formatdate
 from Tkinter import *
 from ttk import *
 BASE = RAISED
@@ -121,7 +123,7 @@ class Application(Frame):
         # Send the email via our own SMTP server.
         SERVER = config.get('smtp', 'server')
         smtpport = config.getint('smtp', 'port')
-        html = MIMEText(self.htmlbox.get('1.0', END).strip().encode('utf-8'), 'html')
+        html = MIMEText(self.htmlbox.get('1.0', END).strip().encode('ascii', 'xmlcharrefreplace'), 'html')
         try:
             self.s = smtplib.SMTP(SERVER, smtpport)
         except smtplib.socket.gaierror, e:
@@ -186,7 +188,7 @@ class Application(Frame):
         msg['From'] = FROM
         msg['To'] = COMMASPACE.join(TO)
         msg.preamble = 'PEmailMarketing v1.x'
-        msg['Date'] = email.utils.formatdate()
+        msg['Date'] = formatdate()
         rcpt = formataddr((str(''), config.get('email', 'bounce')))
         msg.attach(html)
         try:
@@ -225,56 +227,59 @@ class Application(Frame):
             return 'break'
 
         Label(self, text="SMTP Server:", justify=LEFT).grid(row=0, sticky=E)
-        e=Entry(self,textvariable=smtpserver)
-        e.insert(END, config.get('smtp', 'server'))
-        e.grid(row=0, column=1, sticky=W)
+        self.e=Entry(self,textvariable=smtpserver)
+        self.e.insert(END, config.get('smtp', 'server'))
+        self.e.grid(row=0, column=1, sticky=W)
 
         Label(self, text="SMTP Port:", justify=LEFT).grid(row=0, column=2, sticky=E)
-        e=Entry(self,textvariable=smtpport)
-        e.insert(END, config.get('smtp', 'port'))
-        e.grid(row=0, column=3, sticky=W)
+        self.e=Entry(self,textvariable=smtpport)
+        self.e.insert(END, config.get('smtp', 'port'))
+        self.e.grid(row=0, column=3, sticky=W)
 
         Label(self, text="SMTP Username:", justify=LEFT).grid(row=1, column=2, sticky=E)
-        e=Entry(self,textvariable=smtpusername)
-        e.insert(END, config.get('smtp', 'username'))
-        e.grid(row=1, column=3, sticky=W)
+        self.e=Entry(self,textvariable=smtpusername)
+        self.e.insert(END, config.get('smtp', 'username'))
+        self.e.grid(row=1, column=3, sticky=W)
 
         Label(self, text="SMTP Password:", justify=LEFT).grid(row=2, column=2, sticky=E)
-        e=Entry(self,textvariable=smtppassword,show="*")
-        e.insert(END, config.get('smtp', 'password'))
-        e.grid(row=2, column=3, sticky=W)
+        self.e=Entry(self,textvariable=smtppassword,show="*")
+        self.e.insert(END, config.get('smtp', 'password'))
+        self.e.grid(row=2, column=3, sticky=W)
 
         Label(self, text="From Name:", justify=LEFT).grid(row=1, sticky=E)
-        e=Entry(self, textvariable=fromname)
-        e.insert(END, config.get('email', 'fromn'))
-        e.grid(row=1, column=1, sticky=W)
+        self.e=Entry(self, textvariable=fromname)
+        self.e.insert(END, config.get('email', 'fromn'))
+        self.e.grid(row=1, column=1, sticky=W)
 
         Label(self, text="From:", justify=LEFT).grid(row=2, sticky=E)
-        e=Entry(self, textvariable=fromemail)
-        e.insert(END, config.get('email', 'from'))
-        e.grid(row=2, column=1, sticky=W)
+        self.e=Entry(self, textvariable=fromemail)
+        self.e.insert(END, config.get('email', 'from'))
+        self.e.grid(row=2, column=1, sticky=W)
 
         Label(self, text="Bounce:", justify=LEFT).grid(row=3, sticky=E)
-        e=Entry(self, textvariable=bounceemail)
-        e.insert(END, config.get('email', 'bounce'))
-        e.grid(row=3, column=1, sticky=W)
+        self.e=Entry(self, textvariable=bounceemail)
+        self.e.insert(END, config.get('email', 'bounce'))
+        self.e.grid(row=3, column=1, sticky=W)
 
         Label(self, text="To Test Email:", justify=LEFT).grid(row=4, sticky=E)
-        e=Entry(self, textvariable=toemail)
-        e.insert(END, config.get('email', 'to'))
-        e.grid(row=4, column=1, sticky=W)
+        self.e=Entry(self, textvariable=toemail)
+        self.e.insert(END, config.get('email', 'to'))
+        self.e.grid(row=4, column=1, sticky=W)
         myB=Checkbutton(self, text="Test Email:", variable=testemailstatus)
         myB.grid(row=4, column=2, sticky=E)
 
         Label(self, text="Subject:", justify=LEFT).grid(row=5, sticky=E)
-        e=Entry(self, textvariable=subject)
-        e.insert(END, config.get('email', 'subject'))
-        e.grid(row=5, column=1, sticky=W)
+        self.e=Entry(self, textvariable=subject)
+        self.e.insert(END, config.get('email', 'subject'))
+        self.e.grid(row=5, column=1, sticky=W)
 
-        txt_frm = Frame(self, width=600, height=400)
-        txt_frm.grid(row=6, columnspan=10)
+        self.rowconfigure(6, weight=1)
+        self.columnconfigure(6, weight=1)
+        
+        txt_frm = Frame(self, width=200, height=100)
+        txt_frm.grid(row=6, columnspan=10, sticky='nsew')
         # ensure a consistent GUI size
-        txt_frm.grid_propagate(False)
+        txt_frm.propagate(False)
         # implement stretchability
         txt_frm.grid_rowconfigure(0, weight=1)
         txt_frm.grid_columnconfigure(0, weight=1)
@@ -286,7 +291,7 @@ class Application(Frame):
 
         self.htmlbox = Text(txt_frm, wrap=NONE,
             xscrollcommand=xscrollbar.set,
-            yscrollcommand=yscrollbar.set)
+            yscrollcommand=yscrollbar.set, width=80, height=30)
         self.htmlbox.grid(row=0)
         self.htmlbox.insert(END,
 """<html>
@@ -303,9 +308,9 @@ class Application(Frame):
         xscrollbar.config(command=self.htmlbox.xview)
         yscrollbar.config(command=self.htmlbox.yview)
 
-        Button(self, text="Save settings", command=saveSettings).grid(row=15, column=0)
+        Button(self, text="Save settings", command=saveSettings).grid(row=7, column=0)
         self.SEB = SEB = Button(self, text="Send Email", command=self.send)
-        SEB.grid(row=15, column=1)
+        SEB.grid(row=7, column=1)
         menubar = Menu(self)
         fileMenu = Menu(menubar, tearoff=0)
         fileMenu.add_command(label="Open", command=self.openFile)
@@ -372,38 +377,41 @@ class MySQLTab(Frame):
             mysqlactive.set(True)
 
         Label(self, text="Username:", justify=LEFT).grid(row=0, sticky=E)
-        e=Entry(self,textvariable=username)
-        e.insert(END, config.get('mysql', 'username'))
-        e.grid(row=0, column=1, sticky=W)
+        self.e=Entry(self,textvariable=username)
+        self.e.insert(END, config.get('mysql', 'username'))
+        self.e.grid(row=0, column=1, sticky=W)
 
         Label(self, text="Password:", justify=LEFT).grid(row=1, sticky=E)
-        e=Entry(self, textvariable=password,show="*")
-        e.insert(END, config.get('mysql', 'password'))
-        e.grid(row=1, column=1, sticky=W)
+        self.e=Entry(self, textvariable=password,show="*")
+        self.e.insert(END, config.get('mysql', 'password'))
+        self.e.grid(row=1, column=1, sticky=W)
 
         Label(self, text="Database:", justify=LEFT).grid(row=2, sticky=E)
-        e=Entry(self, textvariable=database)
-        e.insert(END, config.get('mysql', 'database'))
-        e.grid(row=2, column=1, sticky=W)
+        self.e=Entry(self, textvariable=database)
+        self.e.insert(END, config.get('mysql', 'database'))
+        self.e.grid(row=2, column=1, sticky=W)
 
         Label(self, text="Server:", justify=LEFT).grid(row=3, sticky=E)
-        e=Entry(self, textvariable=server)
-        e.insert(END, config.get('mysql', 'server'))
-        e.grid(row=3, column=1, sticky=W)
+        self.e=Entry(self, textvariable=server)
+        self.e.insert(END, config.get('mysql', 'server'))
+        self.e.grid(row=3, column=1, sticky=W)
 
         Label(self, text="Port:", justify=LEFT).grid(row=4, sticky=E)
-        e=Entry(self, textvariable=port)
-        e.insert(END, config.get('mysql', 'port'))
-        e.grid(row=4, column=1, sticky=W)
+        self.e=Entry(self, textvariable=port)
+        self.e.insert(END, config.get('mysql', 'port'))
+        self.e.grid(row=4, column=1, sticky=W)
 
         myB = Checkbutton(self, text="Turn MySQL On", variable=mysqlactive, onvalue = True, offvalue = False)
         myB.grid(row=5, columnspan=10, sticky=W)
 
-        txt_frm = Frame(self, width=600, height=400)
-        txt_frm.grid(row=6, columnspan=10)
-        txt_frm.grid_propagate(False)
-        txt_frm.grid_rowconfigure(0, weight=1)
-        txt_frm.grid_columnconfigure(0, weight=1)
+        self.rowconfigure(6, weight=1)
+        self.columnconfigure(6, weight=1)
+
+        txt_frm = Frame(self, width=800, height=500)
+        txt_frm.grid(row=6, columnspan=10, sticky='nsew')
+        txt_frm.propagate(False)
+        txt_frm.rowconfigure(0, weight=1)
+        txt_frm.columnconfigure(0, weight=1)
 
         xscrollbar = Scrollbar(txt_frm, orient=HORIZONTAL)
         xscrollbar.grid(row=1, sticky='nsew')
@@ -412,7 +420,7 @@ class MySQLTab(Frame):
 
         self.sqlbox = Text(txt_frm, wrap=NONE,
             xscrollcommand=xscrollbar.set,
-            yscrollcommand=yscrollbar.set)
+            yscrollcommand=yscrollbar.set, width=80, height=30)
         self.sqlbox.grid(row=0)
         self.sqlbox.focus_set()
         self.sqlbox.bind("<Control-Key-a>", select_all)
@@ -467,6 +475,8 @@ with open('config.ini', 'w') as f:
 
 root = Tk()
 root.title("PEmail Marketing")
+root.update()
+root.minsize(root.winfo_width()+375, root.winfo_height()+300)
 mysqlactive = BooleanVar()
 testemailstatus = BooleanVar()
 mysqlError = BooleanVar()
